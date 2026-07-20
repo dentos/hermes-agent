@@ -342,10 +342,12 @@ export function selectProfile(name: string): void {
   $newChatProfile.set(target)
 
   if (switching) {
-    requestFreshSession()
+    void ensureGatewayProfile(target)
+      .then(() => requestFreshSession())
+      .catch(() => undefined)
+  } else {
+    void ensureGatewayProfile(target)
   }
-
-  void ensureGatewayProfile(target)
 }
 
 // Start a fresh session in `name` WITHOUT collapsing the "All profiles" browse

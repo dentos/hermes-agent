@@ -229,15 +229,21 @@ export function useGatewayBoot({
     // resumes are no-op swaps and reconnects target the right backend.
     // Best-effort: a missing preference means "default". Shared by boot + soft
     // switch.
-    async function adoptPrimaryProfile() {
+    async function adoptPrimaryProfile(primaryConnectionProfile: string | null | undefined) {
       try {
         const pref = await desktop.profile?.get?.()
-        const profileKey = (pref?.profile ?? '').trim() || 'default'
-        $activeGatewayProfile.set(profileKey)
-        setPrimaryGateway(gateway, profileKey)
-        void ensureGatewayForProfile(profileKey)
+        const requestedProfile = normalizeProfileKey(pref?.profile)
+        const primaryProfile = normalizeProfileKey(primaryConnectionProfile)
+        setPrimaryGateway(gateway, primaryProfile)
+        $activeGatewayProfile.set(primaryProfile)
+        if (requestedProfile !== primaryProfile) {
+          await ensureGatewayForProfile(requestedProfile)
+          $activeGatewayProfile.set(requestedProfile)
+        }
       } catch {
-        $activeGatewayProfile.set('default')
+        const primaryProfile = normalizeProfileKey(primaryConnectionProfile)
+        setPrimaryGateway(gateway, primaryProfile)
+        $activeGatewayProfile.set(primaryProfile)
       }
     }
 
@@ -287,7 +293,7 @@ export function useGatewayBoot({
 
         // Same shape as boot(): profile first (session scope depends on it),
         // then the independent fetches concurrently.
-        await adoptPrimaryProfile()
+        await adoptPrimaryProfile(conn.profile)
         await Promise.all([
           seedDefaultCwd(),
           callbacksRef.current.refreshHermesConfig().catch(() => undefined),
@@ -470,7 +476,7 @@ export function useGatewayBoot({
         // (cwd seed, config, sessions) are independent REST calls — running
         // them serially added their sum to time-to-populated-sidebar when only
         // the max is needed.
-        await adoptPrimaryProfile()
+        await adoptPrimaryProfile(conn.profile)
 
         setDesktopBootStep({
           phase: 'renderer.config',
